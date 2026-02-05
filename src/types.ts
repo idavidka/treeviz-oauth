@@ -2,8 +2,13 @@
  * Configuration for TreeViz OAuth client
  */
 export interface TreeVizOAuthConfig {
-	/** Base URL of TreeViz instance (e.g., "https://family-tree-a31ba.web.app") */
-	authUrl: string;
+	/**
+	 * Environment: "production" or "development"
+	 * Production: https://treeviz.app
+	 * Development: http://localhost:5555
+	 * Default: "production"
+	 */
+	environment?: "production" | "development";
 
 	/** OAuth App ID from TreeViz Admin Panel */
 	appId: string;
@@ -17,9 +22,6 @@ export interface TreeVizOAuthConfig {
 	/** Requested OAuth scopes (default: ["email", "profile"]) */
 	scopes?: string[];
 
-	/** OAuth callback path (default: "/oauth/callback") */
-	callbackPath?: string;
-
 	/** Popup window width in pixels (default: 600) */
 	popupWidth?: number;
 
@@ -32,6 +34,14 @@ export interface TreeVizOAuthConfig {
 	 * Default: true
 	 */
 	usePKCE?: boolean;
+
+	/**
+	 * Token exchange Cloud Function URL
+	 * This function will exchange the authorization code for a Firebase token
+	 * Required when using PKCE flow
+	 * Example: https://europe-west1-your-project.cloudfunctions.net/exchangeTreeVizCode
+	 */
+	exchangeTokenUrl?: string;
 }
 
 /**
@@ -63,17 +73,18 @@ export type TreeVizAuthMessageType =
 	| "TREEVIZ_AUTH_ERROR";
 
 /**
- * Success message from TreeViz popup
+ * Success message from TreeViz popup (Authorization Code Flow)
  * @internal
  */
 export interface TreeVizAuthSuccessMessage {
 	type: "TREEVIZ_AUTH_SUCCESS";
-	token: string;
-	uid: string;
-	email: string | null;
-	displayName: string | null;
-	photoURL: string | null;
-	pkceSessionId?: string; // PKCE session ID for token exchange
+	code: string; // Authorization code (for PKCE flow)
+	expiresIn: number; // Code expiration time in seconds
+	token?: string; // Deprecated: Direct token (for non-PKCE flow)
+	uid?: string; // Deprecated: User ID (for non-PKCE flow)
+	email?: string | null; // Deprecated
+	displayName?: string | null; // Deprecated
+	photoURL?: string | null; // Deprecated
 }
 
 /**

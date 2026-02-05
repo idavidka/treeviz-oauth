@@ -4,6 +4,11 @@ import type {
 	TreeVizOAuthConfig,
 } from "./types";
 import { generateCodeVerifier, generateCodeChallenge } from "./pkce";
+import {
+	TREEVIZ_OAUTH_URLS,
+	TREEVIZ_OAUTH_CALLBACK_PATH,
+	DEFAULT_OAUTH_SCOPES,
+} from "./constants";
 
 /**
  * TreeViz OAuth 2.0 Client
@@ -17,9 +22,10 @@ import { generateCodeVerifier, generateCodeChallenge } from "./pkce";
  * ```typescript
  * // PKCE flow (recommended for SPAs)
  * const oauth = new TreeVizOAuth({
- *   authUrl: "https://family-tree-a31ba.web.app",
+ *   environment: "production", // or "development"
  *   appId: "your-app-id",
- *   scopes: ["email", "profile"]
+ *   scopes: ["email", "profile"],
+ *   exchangeTokenUrl: "https://europe-west1-your-project.cloudfunctions.net/exchangeTreeVizCode"
  * });
  *
  * const result = await oauth.signIn();
@@ -27,15 +33,17 @@ import { generateCodeVerifier, generateCodeChallenge } from "./pkce";
  * ```
  */
 export class TreeVizOAuth {
-	private readonly config: Required<Omit<TreeVizOAuthConfig, "appSecret">> & {
-		appSecret?: string;
-	};
+	private readonly appId: string;
+	private readonly appSecret?: string;
+	private readonly scopes: string[];
+	private readonly popupWidth: number;
+	private readonly popupHeight: number;
+	private readonly usePKCE: boolean;
+	private readonly exchangeTokenUrl?: string;
+	private readonly environment: "production" | "development";
 
 	constructor(config: TreeVizOAuthConfig) {
 		// Validate required fields
-		if (!config.authUrl) {
-			throw new Error("TreeViz OAuth: authUrl is required");
-		}
 		if (!config.appId) {
 			throw new Error("TreeViz OAuth: appId is required");
 		}
@@ -50,17 +58,29 @@ export class TreeVizOAuth {
 			);
 		}
 
-		// Set defaults
-		this.config = {
-			authUrl: config.authUrl.replace(/\/$/, ""), // Remove trailing slash
-			appId: config.appId,
-			appSecret: config.appSecret,
-			scopes: config.scopes || ["email", "profile"],
-			callbackPath: config.callbackPath || "/oauth/callback",
-			popupWidth: config.popupWidth || 600,
-			popupHeight: config.popupHeight || 700,
-			usePKCE,
-		};
+		// Validate exchangeTokenUrl if using PKCE
+		if (usePKCE && !config.exchangeTokenUrl) {
+			throw new Error(
+				"TreeViz OAuth: exchangeTokenUrl is required when using PKCE flow"
+			);
+		}
+
+		// Set properties
+		this.appId = config.appId;
+		this.appSecret = config.appSecret;
+		this.scopes = config.scopes || [...DEFAULT_OAUTH_SCOPES];
+		this.popupWidth = config.popupWidth || 600;
+		this.popupHeight = config.popupHeight || 700;
+		this.usePKCE = usePKCE;
+		this.exchangeTokenUrl = config.exchangeTokenUrl;
+		this.environment = config.environment || "production";
+	}
+
+	/**
+	 * Get the TreeViz auth URL based on environment
+	 */
+	private getAuthUrl(): string {
+		return TREEVIZ_OAUTH_URLS[this.environment];
 	}
 
 	/**
@@ -74,20 +94,20 @@ export class TreeVizOAuth {
 		// Generate PKCE verifier/challenge before opening popup
 		let codeVerifier: string | null = null;
 		const authParams: Record<string, string> = {
-			appId: this.config.appId,
+			appId: this.appId,
 			origin: window.location.origin,
 			callbackUri: `${window.location.origin}/auth/callback`,
-			scope: this.config.scopes.join(" "),
+			scope: this.scopes.join(" "),
 		};
 
-		if (this.config.usePKCE) {
+		if (this.usePKCE) {
 			codeVerifier = generateCodeVerifier();
 			const codeChallenge = await generateCodeChallenge(codeVerifier);
 			authParams.code_challenge = codeChallenge;
 			authParams.code_challenge_method = "S256";
 			console.log("[TreeViz OAuth] Using PKCE flow");
 		} else {
-			authParams.appSecret = this.config.appSecret!;
+			authParams.appSecret = this.appSecret!;
 			console.warn(
 				"[TreeViz OAuth] Using client secret (not recommended for public clients)"
 			);
@@ -95,23 +115,24 @@ export class TreeVizOAuth {
 
 		return new Promise((resolve, reject) => {
 			console.log("[TreeViz OAuth] Starting authentication flow");
-			console.log("[TreeViz OAuth] Auth URL:", this.config.authUrl);
-			console.log("[TreeViz OAuth] App ID:", this.config.appId);
-			console.log("[TreeViz OAuth] Scopes:", this.config.scopes.join(" "));
+			console.log("[TreeViz OAuth] Auth URL:", this.getAuthUrl());
+			console.log("[TreeViz OAuth] Callback Path:", TREEVIZ_OAUTH_CALLBACK_PATH);
+			console.log("[TreeViz OAuth] App ID:", this.appId);
+			console.log("[TreeViz OAuth] Scopes:", this.scopes.join(" "));
 
-			const popupUrl = `${this.config.authUrl}${this.config.callbackPath}?${new URLSearchParams(authParams).toString()}`;
+			const popupUrl = `${this.getAuthUrl()}${TREEVIZ_OAUTH_CALLBACK_PATH}?${new URLSearchParams(authParams).toString()}`;
 
 			console.log("[TreeViz OAuth] Popup URL:", popupUrl);
 
 			// Calculate popup position (centered on screen)
-			const left = window.screen.width / 2 - this.config.popupWidth / 2;
-			const top = window.screen.height / 2 - this.config.popupHeight / 2;
+			const left = window.screen.width / 2 - this.popupWidth / 2;
+			const top = window.screen.height / 2 - this.popupHeight / 2;
 
 			// Open authentication popup
 			const popup = window.open(
 				popupUrl,
 				"TreeViz Authentication",
-				`width=${this.config.popupWidth},height=${this.config.popupHeight},left=${left},top=${top}`
+				`width=${this.popupWidth},height=${this.popupHeight},left=${left},top=${top}`
 			);
 
 			if (!popup) {
@@ -120,26 +141,106 @@ export class TreeVizOAuth {
 			}
 
 			// Listen for messages from popup
-			const messageHandler = (event: MessageEvent<TreeVizAuthMessage>) => {
+			const messageHandler = async (
+				event: MessageEvent<TreeVizAuthMessage>
+			) => {
 				console.log("[TreeViz OAuth] Received message:", event.data.type);
 
 				if (event.data.type === "TREEVIZ_AUTH_SUCCESS") {
 					console.log("[TreeViz OAuth] Authentication successful");
 					window.removeEventListener("message", messageHandler);
+					clearInterval(checkClosed);
 					popup.close();
-					resolve({
-						token: event.data.token,
-						uid: event.data.uid,
-						email: event.data.email,
-						displayName: event.data.displayName,
-						photoURL: event.data.photoURL,
-					});
+
+					try {
+						// PKCE flow: exchange code for token
+						if (this.usePKCE && event.data.code && codeVerifier) {
+							console.log(
+								"[TreeViz OAuth] Exchanging authorization code for token"
+							);
+
+							// Call backend function to exchange code
+							const response = await fetch(this.exchangeTokenUrl!, {
+								method: "POST",
+								headers: {
+									"Content-Type": "application/json",
+								},
+								body: JSON.stringify({
+									data: {
+										code: event.data.code,
+										codeVerifier,
+									},
+								}),
+							});
+
+							if (!response.ok) {
+								throw new Error(
+									`Token exchange failed: ${response.statusText}`
+								);
+							}
+
+							const result = (await response.json()) as {
+								result: {
+									firebaseToken: string;
+									user: {
+										uid: string;
+										treevizUid: string;
+										email: string | null;
+										displayName: string | null;
+										photoURL: string | null;
+									};
+								};
+							};
+
+							console.log(
+								"[TreeViz OAuth] Token exchange successful:",
+								result.result.user.uid
+							);
+
+							resolve({
+								token: result.result.firebaseToken,
+								uid: result.result.user.uid,
+								email: result.result.user.email,
+								displayName: result.result.user.displayName,
+								photoURL: result.result.user.photoURL,
+							});
+						} else if (
+							!this.usePKCE &&
+							event.data.token &&
+							event.data.uid
+						) {
+							// Legacy flow: direct token (deprecated)
+							console.warn(
+								"[TreeViz OAuth] Using deprecated direct token flow"
+							);
+							resolve({
+								token: event.data.token,
+								uid: event.data.uid,
+								email: event.data.email || null,
+								displayName: event.data.displayName || null,
+								photoURL: event.data.photoURL || null,
+							});
+						} else {
+							throw new Error("Invalid authentication response");
+						}
+					} catch (error) {
+						console.error(
+							"[TreeViz OAuth] Token exchange error:",
+							error
+						);
+						reject(
+							error instanceof Error
+								? error
+								: new Error("Token exchange failed")
+						);
+					}
 				} else if (event.data.type === "TREEVIZ_AUTH_ERROR") {
 					console.error(
 						"[TreeViz OAuth] Authentication failed:",
 						event.data.error
 					);
 					window.removeEventListener("message", messageHandler);
+					clearInterval(checkClosed);
 					popup.close();
 					reject(
 						new Error(event.data.error || "TreeViz authentication failed")
@@ -167,13 +268,13 @@ export class TreeVizOAuth {
 	 */
 	getConfig(): Omit<Required<TreeVizOAuthConfig>, "appSecret"> {
 		return {
-			authUrl: this.config.authUrl,
-			appId: this.config.appId,
-			scopes: this.config.scopes,
-			callbackPath: this.config.callbackPath,
-			popupWidth: this.config.popupWidth,
-			popupHeight: this.config.popupHeight,
-			usePKCE: this.config.usePKCE,
+			environment: this.environment,
+			appId: this.appId,
+			scopes: this.scopes,
+			popupWidth: this.popupWidth,
+			popupHeight: this.popupHeight,
+			usePKCE: this.usePKCE,
+			exchangeTokenUrl: this.exchangeTokenUrl || "",
 		};
 	}
 }
