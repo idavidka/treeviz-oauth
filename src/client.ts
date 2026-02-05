@@ -3,6 +3,7 @@ import type {
 	TreeVizAuthResult,
 	TreeVizOAuthConfig,
 } from "./types";
+import { generateCodeVerifier, generateCodeChallenge } from "./pkce";
 
 /**
  * TreeViz OAuth 2.0 Client
@@ -10,12 +11,14 @@ import type {
  * Provides federated authentication with TreeViz accounts using OAuth 2.0 popup flow.
  * This client is framework-agnostic and doesn't depend on Firebase or any other library.
  *
+ * Supports both PKCE (recommended for public clients) and client secret authentication.
+ *
  * @example
  * ```typescript
+ * // PKCE flow (recommended for SPAs)
  * const oauth = new TreeVizOAuth({
  *   authUrl: "https://family-tree-a31ba.web.app",
  *   appId: "your-app-id",
- *   appSecret: "your-app-secret",
  *   scopes: ["email", "profile"]
  * });
  *
@@ -24,7 +27,9 @@ import type {
  * ```
  */
 export class TreeVizOAuth {
-	private readonly config: Required<TreeVizOAuthConfig>;
+	private readonly config: Required<Omit<TreeVizOAuthConfig, "appSecret">> & {
+		appSecret?: string;
+	};
 
 	constructor(config: TreeVizOAuthConfig) {
 		// Validate required fields
@@ -34,8 +39,15 @@ export class TreeVizOAuth {
 		if (!config.appId) {
 			throw new Error("TreeViz OAuth: appId is required");
 		}
-		if (!config.appSecret) {
-			throw new Error("TreeViz OAuth: appSecret is required");
+
+		// Default to PKCE for security
+		const usePKCE = config.usePKCE !== false;
+
+		// Validate appSecret if not using PKCE
+		if (!usePKCE && !config.appSecret) {
+			throw new Error(
+				"TreeViz OAuth: appSecret is required when usePKCE is false"
+			);
 		}
 
 		// Set defaults
@@ -47,6 +59,7 @@ export class TreeVizOAuth {
 			callbackPath: config.callbackPath || "/oauth/callback",
 			popupWidth: config.popupWidth || 600,
 			popupHeight: config.popupHeight || 700,
+			usePKCE,
 		};
 	}
 
@@ -58,28 +71,37 @@ export class TreeVizOAuth {
 	 * @throws Error if popup is blocked, authentication fails, or user cancels
 	 */
 	async signIn(): Promise<TreeVizAuthResult> {
+		// Generate PKCE verifier/challenge before opening popup
+		let codeVerifier: string | null = null;
+		const authParams: Record<string, string> = {
+			appId: this.config.appId,
+			origin: window.location.origin,
+			callbackUri: `${window.location.origin}/auth/callback`,
+			scope: this.config.scopes.join(" "),
+		};
+
+		if (this.config.usePKCE) {
+			codeVerifier = generateCodeVerifier();
+			const codeChallenge = await generateCodeChallenge(codeVerifier);
+			authParams.code_challenge = codeChallenge;
+			authParams.code_challenge_method = "S256";
+			console.log("[TreeViz OAuth] Using PKCE flow");
+		} else {
+			authParams.appSecret = this.config.appSecret!;
+			console.warn(
+				"[TreeViz OAuth] Using client secret (not recommended for public clients)"
+			);
+		}
+
 		return new Promise((resolve, reject) => {
 			console.log("[TreeViz OAuth] Starting authentication flow");
 			console.log("[TreeViz OAuth] Auth URL:", this.config.authUrl);
 			console.log("[TreeViz OAuth] App ID:", this.config.appId);
 			console.log("[TreeViz OAuth] Scopes:", this.config.scopes.join(" "));
 
-			// Build callback URL - the popup will redirect here after auth
-			const currentOrigin = window.location.origin;
-			const callbackUrl = `${currentOrigin}/auth/callback`;
-
-			// Build OAuth authorization URL with required parameters
-			const authParams = new URLSearchParams({
-				appId: this.config.appId,
-				appSecret: this.config.appSecret,
-				callbackUri: callbackUrl,
-				scope: this.config.scopes.join(" "),
-			});
-
-			const popupUrl = `${this.config.authUrl}${this.config.callbackPath}?${authParams.toString()}`;
+			const popupUrl = `${this.config.authUrl}${this.config.callbackPath}?${new URLSearchParams(authParams).toString()}`;
 
 			console.log("[TreeViz OAuth] Popup URL:", popupUrl);
-			console.log("[TreeViz OAuth] Callback URL:", callbackUrl);
 
 			// Calculate popup position (centered on screen)
 			const left = window.screen.width / 2 - this.config.popupWidth / 2;
@@ -151,6 +173,7 @@ export class TreeVizOAuth {
 			callbackPath: this.config.callbackPath,
 			popupWidth: this.config.popupWidth,
 			popupHeight: this.config.popupHeight,
+			usePKCE: this.config.usePKCE,
 		};
 	}
 }

@@ -8,8 +8,11 @@ export interface TreeVizOAuthConfig {
 	/** OAuth App ID from TreeViz Admin Panel */
 	appId: string;
 
-	/** OAuth App Secret from TreeViz Admin Panel */
-	appSecret: string;
+	/**
+	 * OAuth App Secret from TreeViz Admin Panel
+	 * @deprecated Use PKCE flow instead (secret not required for public clients)
+	 */
+	appSecret?: string;
 
 	/** Requested OAuth scopes (default: ["email", "profile"]) */
 	scopes?: string[];
@@ -22,6 +25,13 @@ export interface TreeVizOAuthConfig {
 
 	/** Popup window height in pixels (default: 700) */
 	popupHeight?: number;
+
+	/**
+	 * Use PKCE (Proof Key for Code Exchange) flow
+	 * Recommended for public clients (SPAs, mobile apps)
+	 * Default: true
+	 */
+	usePKCE?: boolean;
 }
 
 /**
@@ -63,6 +73,7 @@ export interface TreeVizAuthSuccessMessage {
 	email: string | null;
 	displayName: string | null;
 	photoURL: string | null;
+	pkceSessionId?: string; // PKCE session ID for token exchange
 }
 
 /**
