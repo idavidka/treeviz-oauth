@@ -29,10 +29,9 @@ export const TREEVIZ_OAUTH_CALLBACK_PATH = "/oauth/callback" as const;
  * Called by 3rd party application backends to exchange authorization code for access token
  */
 export const TREEVIZ_TOKEN_ENDPOINTS = {
-	production:
-		"https://europe-west1-family-tree-a31ba.cloudfunctions.net/oauth_token",
+	production: "https://treeviz.com/api/oauth/token",
 	development:
-		"https://europe-west1-family-tree-a31ba.cloudfunctions.net/oauth_token", // Use production endpoint even in dev
+		"https://europe-west1-family-tree-a31ba.cloudfunctions.net/oauth_token",
 } as const;
 
 /**
@@ -41,10 +40,9 @@ export const TREEVIZ_TOKEN_ENDPOINTS = {
  * Called by TreeViz frontend after user login to generate authorization code for 3rd party app
  */
 export const TREEVIZ_AUTHORIZE_ENDPOINTS = {
-	production:
-		"https://europe-west1-family-tree-a31ba.cloudfunctions.net/oauth_authorize",
+	production: "https://treeviz.com/api/oauth/authorize",
 	development:
-		"https://europe-west1-family-tree-a31ba.cloudfunctions.net/oauth_authorize", // Use production endpoint even in dev
+		"https://europe-west1-family-tree-a31ba.cloudfunctions.net/oauth_authorize",
 } as const;
 
 /**
