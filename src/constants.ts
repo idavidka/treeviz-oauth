@@ -1,6 +1,11 @@
 /**
  * TreeViz OAuth Constants
- * Fixed URLs for TreeViz OAuth endpoints
+ * Public OAuth endpoints for 3rd party applications
+ *
+ * This package contains ONLY the public OAuth API:
+ * - oauth_authorize: Generate authorization code
+ * - oauth_token: Exchange code for access token
+ *
  */
 
 /**
@@ -17,6 +22,30 @@ export const TREEVIZ_OAUTH_URLS = {
  * Standard path for OAuth authorization
  */
 export const TREEVIZ_OAUTH_CALLBACK_PATH = "/oauth/callback" as const;
+
+/**
+ * TreeViz OAuth Token Exchange Endpoints (Cloud Functions)
+ * PUBLIC API: Backend-to-backend token exchange with PKCE verification
+ * Called by 3rd party application backends to exchange authorization code for access token
+ */
+export const TREEVIZ_TOKEN_ENDPOINTS = {
+	production:
+		"https://europe-west1-family-tree-a31ba.cloudfunctions.net/oauth_token",
+	development:
+		"https://europe-west1-family-tree-a31ba.cloudfunctions.net/oauth_token", // Use production endpoint even in dev
+} as const;
+
+/**
+ * TreeViz OAuth Authorization Endpoints (Cloud Functions)
+ * PUBLIC API: Generate authorization code after user authentication
+ * Called by TreeViz frontend after user login to generate authorization code for 3rd party app
+ */
+export const TREEVIZ_AUTHORIZE_ENDPOINTS = {
+	production:
+		"https://europe-west1-family-tree-a31ba.cloudfunctions.net/oauth_authorize",
+	development:
+		"https://europe-west1-family-tree-a31ba.cloudfunctions.net/oauth_authorize", // Use production endpoint even in dev
+} as const;
 
 /**
  * Default OAuth scopes

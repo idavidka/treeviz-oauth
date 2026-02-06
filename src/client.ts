@@ -9,6 +9,7 @@ import {
 	TREEVIZ_OAUTH_CALLBACK_PATH,
 	DEFAULT_OAUTH_SCOPES,
 } from "./constants";
+import { exchangeCodeWithBackend } from "./api";
 
 /**
  * TreeViz OAuth 2.0 Client
@@ -116,7 +117,10 @@ export class TreeVizOAuth {
 		return new Promise((resolve, reject) => {
 			console.log("[TreeViz OAuth] Starting authentication flow");
 			console.log("[TreeViz OAuth] Auth URL:", this.getAuthUrl());
-			console.log("[TreeViz OAuth] Callback Path:", TREEVIZ_OAUTH_CALLBACK_PATH);
+			console.log(
+				"[TreeViz OAuth] Callback Path:",
+				TREEVIZ_OAUTH_CALLBACK_PATH
+			);
 			console.log("[TreeViz OAuth] App ID:", this.appId);
 			console.log("[TreeViz OAuth] Scopes:", this.scopes.join(" "));
 
@@ -159,56 +163,31 @@ export class TreeVizOAuth {
 								"[TreeViz OAuth] Exchanging authorization code for token"
 							);
 
-							// Call backend function to exchange code
-							const response = await fetch(this.exchangeTokenUrl!, {
-								method: "POST",
-								headers: {
-									"Content-Type": "application/json",
-								},
-								body: JSON.stringify({
-									data: {
-										code: event.data.code,
-										codeVerifier,
-									},
-								}),
-							});
-
-							if (!response.ok) {
-								throw new Error(
-									`Token exchange failed: ${response.statusText}`
-								);
-							}
-
-							const result = (await response.json()) as {
-								result: {
-									firebaseToken: string;
-									user: {
-										uid: string;
-										treevizUid: string;
-										email: string | null;
-										displayName: string | null;
-										photoURL: string | null;
-									};
+							// Call backend function to exchange code using helper
+							const result = await exchangeCodeWithBackend<{
+								firebaseToken: string;
+								user: {
+									uid: string;
+									treevizUid: string;
+									email: string | null;
+									displayName: string | null;
+									photoURL: string | null;
 								};
-							};
+							}>(this.exchangeTokenUrl!, event.data.code, codeVerifier);
 
 							console.log(
 								"[TreeViz OAuth] Token exchange successful:",
-								result.result.user.uid
+								result.user.uid
 							);
 
 							resolve({
-								token: result.result.firebaseToken,
-								uid: result.result.user.uid,
-								email: result.result.user.email,
-								displayName: result.result.user.displayName,
-								photoURL: result.result.user.photoURL,
+								token: result.firebaseToken,
+								uid: result.user.uid,
+								email: result.user.email,
+								displayName: result.user.displayName,
+								photoURL: result.user.photoURL,
 							});
-						} else if (
-							!this.usePKCE &&
-							event.data.token &&
-							event.data.uid
-						) {
+						} else if (!this.usePKCE && event.data.token && event.data.uid) {
 							// Legacy flow: direct token (deprecated)
 							console.warn(
 								"[TreeViz OAuth] Using deprecated direct token flow"
@@ -224,10 +203,7 @@ export class TreeVizOAuth {
 							throw new Error("Invalid authentication response");
 						}
 					} catch (error) {
-						console.error(
-							"[TreeViz OAuth] Token exchange error:",
-							error
-						);
+						console.error("[TreeViz OAuth] Token exchange error:", error);
 						reject(
 							error instanceof Error
 								? error
