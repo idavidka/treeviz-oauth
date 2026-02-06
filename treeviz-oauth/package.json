@@ -1,0 +1,48 @@
+{
+    "name": "@treeviz/oauth",
+    "version": "1.0.0",
+    "description": "TreeViz OAuth 2.0 client for federated authentication",
+    "type": "module",
+    "main": "./dist/index.js",
+    "module": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.js",
+            "require": "./dist/index.cjs"
+        }
+    },
+    "files": [
+        "dist",
+        "README.md",
+        "LICENSE"
+    ],
+    "scripts": {
+        "build": "tsup",
+        "dev": "tsup --watch",
+        "test": "vitest",
+        "test:ui": "vitest --ui",
+        "typecheck": "tsc --noEmit"
+    },
+    "keywords": [
+        "treeviz",
+        "oauth",
+        "oauth2",
+        "authentication",
+        "federated-auth"
+    ],
+    "author": "idavidka and @treeviz contributors",
+    "license": "MIT",
+    "devDependencies": {
+        "@types/node": "^20.10.0",
+        "tsup": "^8.0.0",
+        "typescript": "^5.3.0",
+        "vitest": "^1.0.0"
+    },
+    "peerDependencies": {},
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/idavidka/treeviz-oauth.git"
+    }
+}
