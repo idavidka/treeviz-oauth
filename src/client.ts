@@ -106,11 +106,11 @@ export class TreeVizOAuth {
 			const codeChallenge = await generateCodeChallenge(codeVerifier);
 			authParams.code_challenge = codeChallenge;
 			authParams.code_challenge_method = "S256";
-			
+
 			// Store code verifier in sessionStorage (popup flow)
 			sessionStorage.setItem("pkce_code_verifier", codeVerifier);
 			sessionStorage.setItem("pkce_code_challenge", codeChallenge);
-			
+
 			// TODO: Implement redirect flow support
 			// For redirect flow, we would need:
 			// 1. Generate unique session ID: const sessionId = crypto.randomUUID();
@@ -118,7 +118,7 @@ export class TreeVizOAuth {
 			// 3. Backend storage on TreeViz to store verifier with state
 			// 4. Retrieve verifier from TreeViz backend in callback
 			// Currently disabled - popup flow only
-			
+
 			console.log("[TreeViz OAuth] Using PKCE flow (popup only)");
 		} else {
 			authParams.appSecret = this.appSecret!;
@@ -258,7 +258,7 @@ export class TreeVizOAuth {
 					clearInterval(checkClosed);
 					window.removeEventListener("message", messageHandler);
 					console.log("[TreeViz OAuth] Popup closed by user");
-					reject(new Error("Authentication cancelled"));
+					reject(new Error("authError.authenticationCancelled"));
 				}
 			}, 1000);
 		});
