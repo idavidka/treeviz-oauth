@@ -1,6 +1,6 @@
 {
 	"name": "@treeviz/oauth",
-	"version": "1.1.0",
+	"version": "1.1.1",
 	"description": "TreeViz OAuth 2.0 client for federated authentication",
 	"type": "module",
 	"main": "./dist/index.js",
