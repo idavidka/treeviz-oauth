@@ -14,7 +14,7 @@
  */
 export const TREEVIZ_OAUTH_URLS = {
 	production: "https://treeviz.com",
-	development: "http://localhost:5555",
+	development: "https://dev.treeviz.com",
 } as const;
 
 /**

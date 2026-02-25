@@ -17,11 +17,7 @@ TreeViz OAuth 2.0 client for federated authentication. This package lets any thi
 
 > **Your application must be registered with TreeViz before you can use this package.**
 
-To register your application, contact the TreeViz team:
-
-- 📧 Email: **support@treeviz.app**
-- Subject: `OAuth App Registration – <Your App Name>`
-- Include: your app name, description, allowed origins and callback URIs
+To register your application, visit **[treeviz.com](https://treeviz.com)** and request access.
 
 Once approved, you will receive an **App ID** to use in your integration. Registration is required for security — TreeViz validates origin and callback URI on every request.
 
@@ -89,7 +85,7 @@ const oauth = new TreeVizOAuth({
 });
 ```
 
-> **Development mode**: Set `environment: "development"` to point the OAuth flow at `http://localhost:5555` (local TreeViz dev server) instead of production.
+> **Development mode**: Set `environment: "development"` to point the OAuth flow at `https://dev.treeviz.com` instead of production.
 
 ### 2. Trigger sign-in
 
