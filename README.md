@@ -1,5 +1,7 @@
 # @treeviz/oauth
 
+> Part of the [@treeviz](https://www.npmjs.com/org/treeviz) organization - A collection of tools for genealogy data processing and visualization.
+
 TreeViz OAuth 2.0 client for federated authentication. This package lets any third-party application authenticate users with their existing TreeViz account, using a secure OAuth 2.0 + PKCE popup flow.
 
 ## Features
