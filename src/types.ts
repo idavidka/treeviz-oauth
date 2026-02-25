@@ -4,7 +4,7 @@
 export interface TreeVizOAuthConfig {
 	/**
 	 * Environment: "production" or "development"
-	 * Production: https://treeviz.app
+	 * Production: https://treeviz.com
 	 * Development: https://dev.treeviz.com
 	 * Default: "production"
 	 */

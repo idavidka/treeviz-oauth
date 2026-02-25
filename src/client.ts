@@ -26,7 +26,7 @@ import { exchangeCodeWithBackend } from "./api";
  *   environment: "production", // or "development"
  *   appId: "your-app-id",
  *   scopes: ["email", "profile"],
- *   exchangeTokenUrl: "https://europe-west1-your-project.cloudfunctions.net/exchangeTreeVizCode"
+ *   exchangeTokenUrl: "https://your-api-url.com/api/exchangeTreeVizCode"
  * });
  *
  * const result = await oauth.signIn();
@@ -153,7 +153,11 @@ export class TreeVizOAuth {
 			);
 
 			if (!popup) {
-				reject(new Error("Popup blocked. Please allow popups for this site."));
+				reject(
+					new Error(
+						"Popup blocked. Please allow popups for this site."
+					)
+				);
 				return;
 			}
 
@@ -174,7 +178,10 @@ export class TreeVizOAuth {
 					return;
 				}
 
-				console.log("[TreeViz OAuth] Received message:", event.data.type);
+				console.log(
+					"[TreeViz OAuth] Received message:",
+					event.data.type
+				);
 
 				if (event.data.type === "TREEVIZ_AUTH_SUCCESS") {
 					console.log("[TreeViz OAuth] Authentication successful");
@@ -199,7 +206,11 @@ export class TreeVizOAuth {
 									displayName: string | null;
 									photoURL: string | null;
 								};
-							}>(this.exchangeTokenUrl!, event.data.code, codeVerifier);
+							}>(
+								this.exchangeTokenUrl!,
+								event.data.code,
+								codeVerifier
+							);
 
 							console.log(
 								"[TreeViz OAuth] Token exchange successful:",
@@ -213,7 +224,11 @@ export class TreeVizOAuth {
 								displayName: result.user.displayName,
 								photoURL: result.user.photoURL,
 							});
-						} else if (!this.usePKCE && event.data.token && event.data.uid) {
+						} else if (
+							!this.usePKCE &&
+							event.data.token &&
+							event.data.uid
+						) {
 							// Legacy flow: direct token (deprecated)
 							console.warn(
 								"[TreeViz OAuth] Using deprecated direct token flow"
@@ -229,7 +244,10 @@ export class TreeVizOAuth {
 							throw new Error("Invalid authentication response");
 						}
 					} catch (error) {
-						console.error("[TreeViz OAuth] Token exchange error:", error);
+						console.error(
+							"[TreeViz OAuth] Token exchange error:",
+							error
+						);
 						reject(
 							error instanceof Error
 								? error
@@ -245,7 +263,9 @@ export class TreeVizOAuth {
 					clearInterval(checkClosed);
 					popup.close();
 					reject(
-						new Error(event.data.error || "TreeViz authentication failed")
+						new Error(
+							event.data.error || "TreeViz authentication failed"
+						)
 					);
 				}
 			};

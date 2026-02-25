@@ -30,8 +30,7 @@ export const TREEVIZ_OAUTH_CALLBACK_PATH = "/oauth/callback" as const;
  */
 export const TREEVIZ_TOKEN_ENDPOINTS = {
 	production: "https://treeviz.com/api/oauth/token",
-	development:
-		"https://europe-west1-family-tree-a31ba.cloudfunctions.net/oauth_token",
+	development: "https://dev.treeviz.com/api/oauth/token",
 } as const;
 
 /**
@@ -41,8 +40,7 @@ export const TREEVIZ_TOKEN_ENDPOINTS = {
  */
 export const TREEVIZ_AUTHORIZE_ENDPOINTS = {
 	production: "https://treeviz.com/api/oauth/authorize",
-	development:
-		"https://europe-west1-family-tree-a31ba.cloudfunctions.net/oauth_authorize",
+	development: "https://dev.treeviz.com/api/oauth/authorize",
 } as const;
 
 /**
