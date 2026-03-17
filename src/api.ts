@@ -149,11 +149,21 @@ export async function exchangeAuthorizationCode(
 ): Promise<TokenExchangeResponse> {
 	const endpoint = TREEVIZ_TOKEN_ENDPOINTS[environment];
 
+	// Set Origin header so TreeViz can route to the correct Firestore DB.
+	// When called server-to-server (e.g. from a Cloud Function), there is no
+	// browser-enforced Origin. In Node.js we can set it freely, which allows
+	// oauth_tokenV2 to resolve the correct named database via CLOUD_ORIGIN_DB_MAP.
+	const originByEnvironment: Record<"production" | "development", string> = {
+		production: "https://treeviz.com",
+		development: "https://dev.treeviz.com",
+	};
+
 	// Cloud Functions v2 expects { data: {...} } wrapper
 	const response = await fetch(endpoint, {
 		method: "POST",
 		headers: {
 			"Content-Type": "application/json",
+			"Origin": originByEnvironment[environment],
 		},
 		body: JSON.stringify({
 			data: params,
