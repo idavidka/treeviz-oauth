@@ -227,12 +227,15 @@ export async function generateAuthorizationCode(
  * @param exchangeUrl - Your backend token exchange endpoint URL
  * @param code - Authorization code from TreeViz
  * @param codeVerifier - PKCE code verifier
+ * @param environment - TreeViz environment used during the OAuth flow ("development" | "production").
+ *   The backend must use the same environment to call the correct TreeViz token endpoint.
  * @returns Your app's authentication result (typically a Firebase custom token)
  */
 export async function exchangeCodeWithBackend<T = any>(
 	exchangeUrl: string,
 	code: string,
-	codeVerifier: string
+	codeVerifier: string,
+	environment: "development" | "production" = "production"
 ): Promise<T> {
 	// Call your backend function (Cloud Functions v2 format)
 	const response = await fetch(exchangeUrl, {
@@ -244,6 +247,7 @@ export async function exchangeCodeWithBackend<T = any>(
 			data: {
 				code,
 				codeVerifier,
+				environment,
 			},
 		}),
 	});

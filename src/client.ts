@@ -209,7 +209,8 @@ export class TreeVizOAuth {
 							}>(
 								this.exchangeTokenUrl!,
 								event.data.code,
-								codeVerifier
+								codeVerifier,
+								this.environment
 							);
 
 							console.log(
