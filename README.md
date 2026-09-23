@@ -6,12 +6,11 @@ TreeViz OAuth 2.0 client for federated authentication. This package lets any thi
 
 ## Features
 
-- 🔐 OAuth 2.0 with PKCE (no client secret needed in the browser)
-- �� Popup-based authentication (non-intrusive)
-- 🔄 Authorization code exchange via your own backend
-- 🎯 Framework-agnostic (works with any frontend framework)
-- 🚀 TypeScript support
-- 🧪 Fully tested
+- OAuth 2.0 with PKCE (no client secret in the browser for a public client)
+- Popup authentication. TreeViz posts the authorization code to the opener
+- Authorization code exchange via your own backend
+- Framework-agnostic (works with any frontend framework)
+- TypeScript support
 
 ---
 
@@ -19,7 +18,7 @@ TreeViz OAuth 2.0 client for federated authentication. This package lets any thi
 
 > **Your application must be registered with TreeViz before you can use this package.**
 
-To register your application, visit **[treeviz.com](https://treeviz.com)** and request access.
+To register your application, write to **[info@treeviz.com](mailto:info@treeviz.com)**. The developer guide is at [treeviz.com/developers](https://treeviz.com/developers).
 
 Once approved, you will receive an **App ID** to use in your integration. Registration is required for security — TreeViz validates origin and callback URI on every request.
 
@@ -58,7 +57,7 @@ Your App (frontend)                            TreeViz
 - `POST https://treeviz.com/api/oauth/token` — the only endpoint your backend needs to call
 - `POST https://treeviz.com/api/oauth/authorize` — called **internally** by TreeViz after the user logs in; you never call this directly
 
-**Why PKCE?** Because the authorization code exchange happens in the browser where a client secret cannot be kept safe. PKCE replaces the secret with a cryptographic challenge that only your app can solve.
+**Why PKCE?** The browser cannot keep a client secret. PKCE binds the authorization code to a verifier created in that same page. A public client does not send `appSecret`. A confidential client still sends `appSecret` from its backend when it exchanges the code.
 
 ---
 
@@ -80,7 +79,7 @@ import { TreeVizOAuth } from "@treeviz/oauth";
 const oauth = new TreeVizOAuth({
   environment: "production",    // "production" | "development"
   appId: "your-app-id",         // Provided by TreeViz after registration
-  scopes: ["email", "profile"],
+  scopes: ["email", "profile"], // also "trees:read", "trees:write"
   usePKCE: true,
   // URL of YOUR backend endpoint that will exchange the auth code
   exchangeTokenUrl: "https://your-backend.example.com/auth/treeviz/exchange",
@@ -112,95 +111,56 @@ async function handleSignIn() {
 }
 ```
 
-### 3. Add the OAuth callback page
+### 3. Register the callback URI
 
-TreeViz redirects back to your `callbackUri` after the user authenticates. You need a dedicated page at that path. Its only job is to receive the authorization code from the URL and pass it back to the opener via `postMessage`.
+The client always sends this callback URI. It is not configurable:
 
-**Callback URI to register with TreeViz:**
 ```
 https://your-app.example.com/auth/callback
 ```
 
-**Example: plain HTML/JS**
+That is `{window.location.origin}/auth/callback`. Register that exact URI, and the page origin, on the OAuth app. TreeViz checks both before it issues a code.
 
-```html
-<!DOCTYPE html>
-<html>
-  <head><title>Authenticating…</title></head>
-  <body>
-    <p>Authenticating, please wait…</p>
-    <script>
-      const params = new URLSearchParams(window.location.search);
-      const code  = params.get("code");
-      const error = params.get("error");
-
-      if (error) {
-        window.opener?.postMessage(
-          { type: "TREEVIZ_AUTH_ERROR", error },
-          window.location.origin
-        );
-      } else if (code) {
-        window.opener?.postMessage(
-          { type: "TREEVIZ_AUTH_SUCCESS", code },
-          window.location.origin
-        );
-      }
-
-      window.close();
-    </script>
-  </body>
-</html>
-```
-
-**Example: React Router route**
-
-```tsx
-// src/pages/auth-callback.tsx
-import { useEffect } from "react";
-import { useSearchParams } from "react-router-dom";
-
-export function AuthCallback() {
-  const [params] = useSearchParams();
-
-  useEffect(() => {
-    const code  = params.get("code");
-    const error = params.get("error");
-
-    if (error) {
-      window.opener?.postMessage(
-        { type: "TREEVIZ_AUTH_ERROR", error },
-        window.location.origin
-      );
-    } else if (code) {
-      window.opener?.postMessage(
-        { type: "TREEVIZ_AUTH_SUCCESS", code },
-        window.location.origin
-      );
-    }
-
-    window.close();
-  }, [params]);
-
-  return <p>Authenticating…</p>;
-}
-```
-
-Register this route in your router:
-
-```tsx
-<Route path="/auth/callback" element={<AuthCallback />} />
-```
+The popup stays on TreeViz (`/oauth/callback`). After the user signs in, TreeViz posts `{ type: "TREEVIZ_AUTH_SUCCESS", code }` to `window.opener`. You do not add a page that reads `code` from the query string.
 
 ---
 
 ## Backend Integration
 
-The `@treeviz/oauth` client will call your `exchangeTokenUrl` with a `POST` request carrying `{ code, codeVerifier }` in the body. Your backend must:
+The client `POST`s `exchangeTokenUrl` with a Cloud Functions `onCall` body:
 
-1. Receive `code` and `codeVerifier`
-2. Call the **TreeViz token endpoint** to exchange the code for user info
+```json
+{
+  "data": {
+    "code": "<authorization_code>",
+    "codeVerifier": "<pkce_code_verifier>",
+    "environment": "production"
+  }
+}
+```
+
+`environment` is `"production"` or `"development"`. Call the TreeViz token endpoint for that same environment.
+
+The client reads `result.firebaseToken` and `result.user`. An `onCall` function returns the object below and the platform wraps it. A plain HTTP server must send the `{ "result": ... }` wrapper itself.
+
+```json
+{
+  "firebaseToken": "<your session token>",
+  "user": {
+    "uid": "your-user-id",
+    "email": "user@example.com",
+    "displayName": "Jane Doe",
+    "photoURL": null
+  }
+}
+```
+
+Your backend must:
+
+1. Read `code`, `codeVerifier`, and `environment`
+2. Call the **TreeViz token endpoint** for that environment
 3. Create or update the user in your own auth/database
-4. Return a session token to the frontend
+4. Return `firebaseToken` and `user` as above
 
 ### Using the Built-in Backend SDK (recommended)
 
@@ -211,6 +171,7 @@ import { TreeVizOAuthAPI } from "@treeviz/oauth";
 
 const treeviz = new TreeVizOAuthAPI({
   appId: process.env.TREEVIZ_APP_ID!,
+  // appSecret: process.env.TREEVIZ_APP_SECRET, // confidential clients only
   environment: "production", // "production" | "development"
 });
 
@@ -245,6 +206,8 @@ Content-Type: application/json
 }
 ```
 
+Set the `Origin` header to `https://treeviz.com` or `https://dev.treeviz.com`, matching `environment`. The token endpoint uses that header to choose the Firestore database. A confidential client also sends `appSecret` inside `data`.
+
 **Successful response:**
 
 ```json
@@ -272,18 +235,29 @@ Content-Type: application/json
 ```javascript
 // POST /auth/treeviz/exchange
 app.post("/auth/treeviz/exchange", async (req, res) => {
-  const { code, codeVerifier } = req.body;
+  const { code, codeVerifier, environment } = req.body.data ?? {};
 
   if (!code || !codeVerifier) {
     return res.status(400).json({ error: "Missing code or codeVerifier" });
   }
 
+  const tokenEndpoint =
+    environment === "development"
+      ? "https://dev.treeviz.com/api/oauth/token"
+      : "https://treeviz.com/api/oauth/token";
+
   // 1. Exchange code with TreeViz
   const tokenRes = await fetch(
-    "https://treeviz.com/api/oauth/token",
+    tokenEndpoint,
     {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        Origin:
+          environment === "development"
+            ? "https://dev.treeviz.com"
+            : "https://treeviz.com",
+      },
       body: JSON.stringify({
         data: {
           appId: process.env.TREEVIZ_APP_ID,
@@ -315,11 +289,15 @@ app.post("/auth/treeviz/exchange", async (req, res) => {
   const sessionToken = issueSessionToken(yourUserId);
 
   res.json({
-    token: sessionToken,
-    uid: yourUserId,
-    email: treevizUser.email,
-    displayName: treevizUser.displayName,
-    photoURL: treevizUser.photoURL,
+    result: {
+      firebaseToken: sessionToken,
+      user: {
+        uid: yourUserId,
+        email: treevizUser.email,
+        displayName: treevizUser.displayName,
+        photoURL: treevizUser.photoURL,
+      },
+    },
   });
 });
 ```
@@ -336,16 +314,27 @@ const TREEVIZ_TOKEN_ENDPOINT =
   "https://treeviz.com/api/oauth/token";
 
 export const exchangeTreeVizCode = onCall(async (request) => {
-  const { code, codeVerifier } = request.data;
+  const { code, codeVerifier, environment } = request.data;
 
   if (!code || !codeVerifier) {
     throw new HttpsError("invalid-argument", "Missing required parameters");
   }
 
   // 1. Exchange code with TreeViz
-  const tokenResponse = await fetch(TREEVIZ_TOKEN_ENDPOINT, {
+  const tokenEndpoint =
+    environment === "development"
+      ? "https://dev.treeviz.com/api/oauth/token"
+      : TREEVIZ_TOKEN_ENDPOINT;
+
+  const tokenResponse = await fetch(tokenEndpoint, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      Origin:
+        environment === "development"
+          ? "https://dev.treeviz.com"
+          : "https://treeviz.com",
+    },
     body: JSON.stringify({
       data: {
         appId: process.env.TREEVIZ_APP_ID,
@@ -391,11 +380,13 @@ export const exchangeTreeVizCode = onCall(async (request) => {
   });
 
   return {
-    token: firebaseToken,
-    uid,
-    email: treevizUser.email,
-    displayName: treevizUser.displayName,
-    photoURL: treevizUser.photoURL,
+    firebaseToken,
+    user: {
+      uid,
+      email: treevizUser.email,
+      displayName: treevizUser.displayName,
+      photoURL: treevizUser.photoURL,
+    },
   };
 });
 ```
@@ -425,21 +416,32 @@ TREEVIZ_TOKEN_ENDPOINT = (
 
 @app.post("/auth/treeviz/exchange")
 def exchange():
-    body = request.get_json()
-    code = body.get("code")
-    code_verifier = body.get("codeVerifier")
+    payload = (request.get_json() or {}).get("data") or {}
+    code = payload.get("code")
+    code_verifier = payload.get("codeVerifier")
+    environment = payload.get("environment")
 
     if not code or not code_verifier:
         return jsonify(error="Missing code or codeVerifier"), 400
 
     # 1. Exchange with TreeViz
+    token_endpoint = (
+        "https://dev.treeviz.com/api/oauth/token"
+        if environment == "development"
+        else TREEVIZ_TOKEN_ENDPOINT
+    )
     resp = requests.post(
-        TREEVIZ_TOKEN_ENDPOINT,
+        token_endpoint,
         json={"data": {
             "appId": os.environ["TREEVIZ_APP_ID"],
             "code": code,
             "codeVerifier": code_verifier,
         }},
+        headers={
+            "Origin": "https://dev.treeviz.com"
+            if environment == "development"
+            else "https://treeviz.com",
+        },
     )
     if not resp.ok:
         return jsonify(error="TreeViz token exchange failed"), 502
@@ -453,13 +455,15 @@ def exchange():
     # 3. Issue your own session token
     session_token = issue_session_token(your_user_id)
 
-    return jsonify(
-        token=session_token,
-        uid=your_user_id,
-        email=treeviz_user.get("email"),
-        displayName=treeviz_user.get("displayName"),
-        photoURL=treeviz_user.get("photoURL"),
-    )
+    return jsonify(result={
+        "firebaseToken": session_token,
+        "user": {
+            "uid": your_user_id,
+            "email": treeviz_user.get("email"),
+            "displayName": treeviz_user.get("displayName"),
+            "photoURL": treeviz_user.get("photoURL"),
+        },
+    })
 ```
 
 ---
@@ -470,10 +474,10 @@ def exchange():
 
 | Option | Type | Required | Default | Description |
 |--------|------|----------|---------|-------------|
-| `environment` | `"production"` \| `"development"` | No | `"production"` | Switches between prod and local TreeViz server |
+| `environment` | `"production"` \| `"development"` | No | `"production"` | `https://treeviz.com` or `https://dev.treeviz.com` |
 | `appId` | `string` | **Yes** | — | App ID provided by TreeViz after registration |
 | `appSecret` | `string` | No | — | Deprecated — not needed for PKCE flow |
-| `scopes` | `string[]` | No | `["email","profile"]` | Requested OAuth scopes |
+| `scopes` | `string[]` | No | `["email","profile"]` | Also `trees:read` and `trees:write` for the Tree REST API |
 | `usePKCE` | `boolean` | No | `true` | Enable PKCE flow (recommended for all public clients) |
 | `exchangeTokenUrl` | `string` | Yes (PKCE) | — | Your backend endpoint that exchanges the authorization code |
 | `popupWidth` | `number` | No | `600` | Popup window width in pixels |
@@ -504,7 +508,7 @@ try {
       case "Popup blocked. Please allow popups for this site.":
         alert("Please allow popups for this site and try again.");
         break;
-      case "Authentication cancelled":
+      case "authError.authenticationCancelled":
         // User closed the popup — no action needed
         break;
       default:
